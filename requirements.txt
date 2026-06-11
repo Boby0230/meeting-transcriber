@@ -1,0 +1,20 @@
+# Core
+flask>=3.0
+numpy
+
+# Transcription — Apple Silicon only.
+# On Intel Mac / Linux / Windows, swap for faster-whisper:
+#   pip3 install faster-whisper
+# and edit transcriber.py accordingly. (Not yet supported here.)
+mlx-whisper>=0.4
+
+# Production WSGI server (optional for dev, recommended for deploy).
+gunicorn>=21.0
+
+# Optional — speaker diarization. Pulls in torch (~500 MB).
+#   pip3 install pyannote.audio
+# Then set HF_TOKEN and accept the model licenses at:
+#   https://huggingface.co/pyannote/speaker-diarization-3.1
+#   https://huggingface.co/pyannote/segmentation-3.0
+#   https://huggingface.co/pyannote/speaker-diarization-community-1
+# pyannote.audio>=4.0

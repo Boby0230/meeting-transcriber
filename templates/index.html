@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Transcriber</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">🎙</div>
+    <div>
+      <h1>Meeting Transcriber</h1>
+    </div>
+    <span class="subtitle">MLX Whisper + pyannote · 100% local</span>
+  </header>
+
+  <!-- Upload -->
+  <div class="upload-section">
+    <div class="upload-row">
+      <button class="upload-btn" id="uploadBtn">📂 Choose audio file</button>
+      <div class="file-info" id="fileInfo">No file selected</div>
+      <input type="file" id="fileInput" accept=".m4a,.mp3,.wav,.mp4,.webm,.ogg,.flac" hidden>
+    </div>
+    <div class="format-hint">M4A, MP3, WAV, MP4 — any size, processed locally</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <select id="language">
+      <option value="auto">Language: Auto-detect</option>
+      <option value="ro">Română</option>
+      <option value="en">English</option>
+    </select>
+    <button class="btn btn-primary" id="btnRun" disabled>Transcribe</button>
+  </div>
+
+  <!-- Options -->
+  <div class="options">
+    <label class="option-toggle" title="Use pyannote to identify who said what. Requires HF_TOKEN.">
+      <input type="checkbox" id="optDiarize">
+      <span class="option-label">
+        <strong>Identify speakers</strong>
+        <span class="option-meta">pyannote · FREE · slower</span>
+      </span>
+    </label>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-panel" id="progressPanel">
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-header">
+      <div class="progress-status">
+        <div class="spinner"></div>
+        <span class="progress-label" id="progressLabel">Starting...</span>
+      </div>
+      <span class="progress-pct" id="progressPct">0%</span>
+    </div>
+    <div class="progress-meta">
+      <span id="progressElapsed">Elapsed: 0m 00s</span>
+      <span id="progressDuration"></span>
+      <span id="progressWords"></span>
+    </div>
+    <div class="log-container" id="logContainer"></div>
+  </div>
+
+  <!-- Error / warning banner -->
+  <div class="error-msg" id="error"></div>
+
+  <!-- Result -->
+  <div class="results" id="results">
+    <div class="export-bar">
+      <span class="label">Export:</span>
+      <button class="btn btn-ghost btn-sm" id="exportMd">📄 Markdown</button>
+      <button class="btn btn-ghost btn-sm" id="exportTxt">📝 Text</button>
+      <button class="btn btn-ghost btn-sm" id="exportJson">🔧 JSON</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Transcript</h2>
+        <div class="panel-actions">
+          <button class="copy-btn" onclick="copyContent('transcriptBody')">Copy</button>
+        </div>
+      </div>
+      <div class="panel-body" id="transcriptBody"></div>
+    </div>
+  </div>
+
+  <!-- Recent jobs -->
+  <div class="panel jobs-panel" id="jobsPanel" style="display:none;">
+    <div class="panel-header">
+      <h2>Recent Jobs</h2>
+      <div class="panel-actions">
+        <button class="copy-btn" onclick="refreshJobs()">Refresh</button>
+      </div>
+    </div>
+    <div class="jobs-list" id="jobsList"></div>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# App data (DB, uploads) and exports
+data/
+exports/
+
+# macOS
+.DS_Store
