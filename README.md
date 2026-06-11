@@ -33,7 +33,7 @@ clean transcript               ← exported as md / txt / json
 ## Quick start
 
 ```bash
-git clone <your-repo-url> meeting-transcriber
+git clone https://github.com/Boby0230/meeting-transcriber.git
 cd meeting-transcriber
 ./setup.sh      # one-time: installs deps, optionally sets up diarization
 ./run.sh        # starts the app and opens your browser
@@ -57,6 +57,40 @@ pip install pyannote.audio
 cp .env.example .env   # then put your HF_TOKEN in .env
 caffeinate -i python3 app.py
 ```
+
+## Running & stopping the app
+
+**Start** (opens your browser automatically once it's ready):
+
+```bash
+cd meeting-transcriber
+./run.sh
+```
+
+The terminal stays busy showing live logs — that's expected. Keep the window
+open while you use the app.
+
+**Stop:** press **`Ctrl + C`** in that terminal. Closing the terminal window
+also stops it.
+
+**Keep it running after you close the terminal** (optional):
+
+```bash
+nohup ./run.sh > ~/meeting-transcriber.log 2>&1 &
+```
+
+Then stop it later with this — works no matter how it was started:
+
+```bash
+lsof -ti:5001 | xargs kill
+```
+
+**Good to know**
+
+- Check if it's running: `lsof -i:5001`, or just open http://localhost:5001.
+- `Address already in use` when starting means it's *already* running — just
+  open the browser; don't start a second copy. Only one instance runs at a
+  time (single GPU, single port).
 
 ## Production / sharing on your network
 
