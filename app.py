@@ -19,9 +19,11 @@ import logging
 import os
 import sys
 import threading
+import unicodedata
 import uuid
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 # ── Dependency check ──────────────────────────────────────────────────
 _missing = []
@@ -259,6 +261,34 @@ def api_jobs():
     })
 
 
+def _content_disposition(filename: str) -> str:
+    """
+    Build an RFC 6266 Content-Disposition value for an attachment.
+
+    HTTP headers may only contain latin-1 characters, so a filename with
+    diacritics (e.g. "Strada Arcașilor.txt") raises UnicodeEncodeError if
+    embedded directly. We emit both forms:
+      - `filename="..."`      — quoted ASCII fallback (accents stripped),
+                                also protecting spaces/commas from being
+                                misparsed as header syntax.
+      - `filename*=UTF-8''…`  — percent-encoded original, which every
+                                current browser prefers.
+    """
+    ascii_name = (
+        unicodedata.normalize("NFKD", filename)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    # Strip characters that would break out of the quoted string.
+    ascii_name = ascii_name.replace('"', "").replace("\\", "").strip()
+    # A name that was entirely non-ASCII (e.g. "会議.json") leaves just the
+    # extension — give the fallback a usable stem.
+    if not ascii_name or ascii_name.startswith("."):
+        ascii_name = f"transcript{ascii_name}"
+    utf8_name = quote(filename, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
+
+
 @app.route("/api/export/<job_id>/<fmt>")
 def api_export(job_id, fmt):
     job = store.get(job_id)
@@ -276,14 +306,14 @@ def api_export(job_id, fmt):
         body += job.transcript
         return Response(
             body, mimetype="text/markdown",
-            headers={"Content-Disposition": f"attachment; filename={download_name}.md"},
+            headers={"Content-Disposition": _content_disposition(f"{download_name}.md")},
         )
 
     if fmt == "txt":
         body = job.transcript
         return Response(
             body, mimetype="text/plain",
-            headers={"Content-Disposition": f"attachment; filename={download_name}.txt"},
+            headers={"Content-Disposition": _content_disposition(f"{download_name}.txt")},
         )
 
     if fmt == "json":
@@ -301,7 +331,7 @@ def api_export(job_id, fmt):
         return Response(
             json.dumps(data, indent=2, ensure_ascii=False),
             mimetype="application/json",
-            headers={"Content-Disposition": f"attachment; filename={download_name}.json"},
+            headers={"Content-Disposition": _content_disposition(f"{download_name}.json")},
         )
 
     return jsonify({"error": f"Unknown format: {fmt}"}), 400
