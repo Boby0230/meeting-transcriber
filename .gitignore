@@ -12,3 +12,6 @@ exports/
 
 # macOS
 .DS_Store
+
+# Built launcher app bundle (rebuild with launcher/build.sh)
+Meeting Transcriber.app/

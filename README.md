@@ -42,6 +42,10 @@ cd meeting-transcriber
 That's it. `setup.sh` is interactive and safe to re-run; `run.sh` keeps your
 Mac awake during long jobs and opens http://localhost:5001 once it's ready.
 
+Prefer not to touch a terminal at all? Run `./launcher/build.sh` once to get a
+double-clickable **Meeting Transcriber.app** — see
+[Double-click launcher](#double-click-launcher-no-terminal).
+
 **No `ANTHROPIC_API_KEY` or any paid secret is required** — everything runs
 locally. The only optional credential is a free HuggingFace token, and only
 if you want speaker labels (the setup script walks you through it).
@@ -91,6 +95,33 @@ lsof -ti:5001 | xargs kill
 - `Address already in use` when starting means it's *already* running — just
   open the browser; don't start a second copy. Only one instance runs at a
   time (single GPU, single port).
+
+## Double-click launcher (no Terminal)
+
+`launcher/` builds a small macOS app so you can start everything from Finder
+instead of a terminal:
+
+```bash
+./launcher/build.sh
+```
+
+That produces **`Meeting Transcriber.app`** in the project folder. Double-click
+it and it will:
+
+1. Start the server in the background if it isn't already running
+2. Wait until the server is actually ready
+3. Open http://localhost:5001 in your browser
+
+Clicking it again while the server is already running just reopens the browser
+— it won't start a second copy. Server output goes to `data/server.log`.
+
+Drag the app to your Dock if you want it one click away. To stop the server,
+see "Running & stopping the app" above (`lsof -ti:5001 | xargs kill`).
+
+The `.app` is a build artifact and is gitignored — run `./launcher/build.sh`
+once after cloning. It needs Pillow for the custom icon
+(`.venv/bin/pip install Pillow`); without it the app still works and just
+keeps the generic script icon.
 
 ## Production / sharing on your network
 
