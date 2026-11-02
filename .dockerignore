@@ -1,0 +1,13 @@
+# Keep secrets, data and Mac-only files out of the image.
+.env
+.env.*
+!.env.example
+data/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.claude/
+.DS_Store
+launcher/
+*.app/

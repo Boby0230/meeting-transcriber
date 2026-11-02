@@ -109,7 +109,9 @@
 
   <!-- Footer -->
   <footer class="footer">
+    {% if allow_shutdown %}
     <button class="btn btn-ghost btn-sm" id="btnStop" title="Shut down the local server. Reopen from the Meeting Transcriber app.">Stop app</button>
+    {% endif %}
   </footer>
 
 </div>

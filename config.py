@@ -60,9 +60,30 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Transcription ─────────────────────────────────────────────────────
+# "mlx" (Apple Silicon GPU) or "faster-whisper" (CPU, any OS). "auto" picks
+# mlx on an Apple Silicon Mac and faster-whisper everywhere else.
+def _default_engine() -> str:
+    import platform
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        return "mlx"
+    return "faster-whisper"
+
+
+ENGINE = os.environ.get("MS_ENGINE", "auto").strip().lower()
+if ENGINE == "auto":
+    ENGINE = _default_engine()
+if ENGINE not in ("mlx", "faster-whisper"):
+    raise ValueError(f"MS_ENGINE must be auto, mlx or faster-whisper, not {ENGINE!r}")
+
+# Same model (Whisper large-v3) in each engine's own format.
 WHISPER_MODEL = os.environ.get(
-    "MS_WHISPER_MODEL", "mlx-community/whisper-large-v3-mlx"
+    "MS_WHISPER_MODEL",
+    "mlx-community/whisper-large-v3-mlx" if ENGINE == "mlx" else "large-v3",
 )
+# faster-whisper only: int8 is the fastest on CPU with near-identical quality.
+FW_COMPUTE_TYPE = os.environ.get("MS_FW_COMPUTE_TYPE", "int8")
+# faster-whisper only: CPU threads. Default: physical cores (half the logical ones).
+FW_THREADS = _env_int("MS_FW_THREADS", max(1, (os.cpu_count() or 2) // 2))
 CHUNK_MINUTES = _env_int("MS_CHUNK_MINUTES", 10)
 CHUNK_THRESHOLD_MIN = _env_int("MS_CHUNK_THRESHOLD_MIN", 15)
 
@@ -70,6 +91,11 @@ CHUNK_THRESHOLD_MIN = _env_int("MS_CHUNK_THRESHOLD_MIN", 15)
 DIARIZATION_MODEL = os.environ.get(
     "MS_DIARIZATION_MODEL", "pyannote/speaker-diarization-3.1"
 )
+
+# ── Server mode ───────────────────────────────────────────────────────
+# The "Stop app" button. On by default for the Mac launcher; ALLOW_SHUTDOWN=0
+# on the server, where Docker manages the process.
+ALLOW_SHUTDOWN = os.environ.get("ALLOW_SHUTDOWN", "1") != "0"
 
 # ── Logging ───────────────────────────────────────────────────────────
 LOG_LEVEL = os.environ.get("MS_LOG_LEVEL", "INFO")

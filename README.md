@@ -184,11 +184,34 @@ The transcriber is tuned to avoid Whisper's common failure modes:
 It uses `whisper-large-v3` (not the faster `turbo`) deliberately — quality
 over speed.
 
+## Linux and Docker
+
+On anything other than an Apple Silicon Mac, the app uses
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) on the CPU
+instead of mlx-whisper. Same model (Whisper large-v3), same decoding
+settings. `requirements.txt` installs the right engine for the machine.
+
+```bash
+docker build -t meeting-transcriber .
+docker run --env-file .env -v mt_data:/data -v mt_models:/models \
+  -p 127.0.0.1:5001:5001 meeting-transcriber
+```
+
+The first start downloads the model (~3 GB) into `/models`. On a CPU,
+expect transcription to be several times slower than on an M-series Mac.
+In the image the "Stop app" button is off (`ALLOW_SHUTDOWN=0`).
+
+| Var | Default | Purpose |
+| --- | --- | --- |
+| `MS_ENGINE` | `auto` | `mlx`, `faster-whisper`, or `auto` (mlx on Apple Silicon) |
+| `MS_FW_COMPUTE_TYPE` | `int8` | faster-whisper precision on CPU |
+| `MS_FW_THREADS` | half the logical CPUs | faster-whisper CPU threads |
+| `ALLOW_SHUTDOWN` | `1` | `0` hides the Stop app button and turns off its route |
+
 ## Known limits
 
-- **Apple Silicon only.** mlx-whisper doesn't run on Intel Macs / Linux /
-  Windows. Swapping to `faster-whisper` would unlock those (and a CUDA GPU
-  would be much faster) — left as a follow-up.
+- **CPU is slower.** Off Apple Silicon, faster-whisper runs on the CPU. A
+  CUDA GPU would be much faster (not set up here yet).
 - **No auth.** Anyone with network access to the host can upload and read
   transcripts. Fine for a trusted LAN, not for the open internet — put auth
   in front of it (e.g. basic auth in nginx) before exposing it.

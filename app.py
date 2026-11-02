@@ -2,7 +2,7 @@
 """
 Meeting Transcriber — Flask web app.
 
-Pipeline: upload audio → mlx-whisper transcribe → optional pyannote
+Pipeline: upload audio → whisper transcribe (mlx or faster-whisper) → optional pyannote
 speaker diarization → optional Claude cleanup pass → clean transcript.
 
 Routes:
@@ -27,8 +27,11 @@ from pathlib import Path
 from urllib.parse import quote
 
 # ── Dependency check ──────────────────────────────────────────────────
+import config  # noqa: E402
+
+_engine_pkg = ("mlx_whisper", "mlx-whisper") if config.ENGINE == "mlx" else ("faster_whisper", "faster-whisper")
 _missing = []
-for _pkg, _pip in [("flask", "flask"), ("mlx_whisper", "mlx-whisper")]:
+for _pkg, _pip in [("flask", "flask"), _engine_pkg]:
     try:
         __import__(_pkg)
     except ImportError:
@@ -39,7 +42,6 @@ if _missing:
 
 from flask import Flask, jsonify, render_template, request, Response  # noqa: E402
 
-import config  # noqa: E402
 import pipeline  # noqa: E402
 from storage import JobStore  # noqa: E402
 
@@ -142,7 +144,13 @@ def run_job(job_id: str, file_path: str, options: pipeline.PipelineOptions):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", allow_shutdown=config.ALLOW_SHUTDOWN)
+
+
+@app.route("/healthz")
+def healthz():
+    """Health check for Docker and the uptime monitor. Reveals no data."""
+    return jsonify({"ok": True})
 
 
 @app.route("/api/process", methods=["POST"])
@@ -348,6 +356,9 @@ def api_shutdown():
     transcript is only persisted once the pipeline finishes, so killing the
     server mid-job throws that work away.
     """
+    if not config.ALLOW_SHUTDOWN:
+        return jsonify({"error": "Not found"}), 404
+
     force = request.args.get("force") == "true"
     if pipeline.queue_is_busy() and not force:
         log.info("Shutdown refused — a job is still running")
@@ -374,7 +385,7 @@ def _print_banner():
     print()
     print("  🎙  Meeting Transcriber")
     print("  ══════════════════════")
-    print(f"  Transcription:    FREE   (mlx-whisper, {config.WHISPER_MODEL})")
+    print(f"  Transcription:    FREE   ({config.ENGINE}, {config.WHISPER_MODEL})")
     print(f"  Diarization:      FREE   (pyannote, optional)")
     print(f"  Fully local — no API keys required.")
     print()

@@ -1,10 +1,11 @@
 """
-Local transcription engine using mlx-whisper (Apple Silicon optimized).
+Local transcription engine: mlx-whisper on Apple Silicon, faster-whisper
+elsewhere (Linux server, CPU). config.ENGINE picks one.
 
 Pipeline:
   1. ffmpeg → mono 16 kHz mp3, optionally with silences trimmed
   2. If audio is long, split into N-minute chunks for progress + memory
-  3. mlx-whisper on each chunk with hardened decoding settings to suppress
+  3. Whisper on each chunk with hardened decoding settings to suppress
      the YouTube-style hallucinations ("Thanks for watching!" etc.) that
      whisper emits on silence or low-confidence audio
   4. Post-process to drop known hallucination phrases + immediate repeats
@@ -134,46 +135,75 @@ def preprocess_short(file_path: str, trim_silence: bool = True) -> str:
 
 
 # ── Whisper ───────────────────────────────────────────────────────────
+#
+# Decoding settings tuned to reduce hallucinations, shared by both engines:
+#
+# - condition_on_previous_text=False: stops a single hallucination from
+#   cascading into the rest of the transcript.
+# - compression_ratio_threshold=2.0: reject overly repetitive segments;
+#   whisper retries them with a higher temperature.
+# - no_speech_threshold=0.6 + logprob_threshold=-0.8: drop low-confidence
+#   silent segments instead of inventing words.
+#
+# Word-level timestamps are intentionally NOT requested. Speaker diarization
+# aligns on segment-level start/end times, so word timestamps would roughly
+# double decode time for data we never use.
+
+DECODING = {
+    "condition_on_previous_text": False,
+    "compression_ratio_threshold": 2.0,
+    "no_speech_threshold": 0.6,
+    "logprob_threshold": -0.8,
+    "temperature": (0.0, 0.2, 0.4, 0.6),
+}
+
+_fw_model = None
+
+
+def _faster_whisper_model():
+    """Load the faster-whisper model once and keep it."""
+    global _fw_model
+    if _fw_model is None:
+        from faster_whisper import WhisperModel
+        log.info("Loading faster-whisper model %s (%s, %s threads) ...",
+                 config.WHISPER_MODEL, config.FW_COMPUTE_TYPE, config.FW_THREADS)
+        _fw_model = WhisperModel(
+            config.WHISPER_MODEL,
+            device="cpu",
+            compute_type=config.FW_COMPUTE_TYPE,
+            cpu_threads=config.FW_THREADS,
+        )
+    return _fw_model
+
+
+def _run_whisper(audio, language: Optional[str]) -> dict:
+    """
+    Transcribe one file path (or a float32 numpy array) with the configured
+    engine. Returns {"segments": [{start, end, text}, ...], "language": str}.
+    """
+    if config.ENGINE == "mlx":
+        import mlx_whisper
+        kwargs = {"path_or_hf_repo": config.WHISPER_MODEL, "verbose": False, **DECODING}
+        if language:
+            kwargs["language"] = language
+        result = mlx_whisper.transcribe(audio, **kwargs)
+        return {"segments": result.get("segments", []), "language": result.get("language")}
+
+    model = _faster_whisper_model()
+    fw = dict(DECODING)
+    fw["log_prob_threshold"] = fw.pop("logprob_threshold")
+    fw["temperature"] = list(fw["temperature"])
+    segments, info = model.transcribe(audio, language=language or None, **fw)
+    out = [{"start": seg.start, "end": seg.end, "text": seg.text} for seg in segments]
+    return {"segments": out, "language": info.language}
+
 
 def preload_model():
     """Download + warm the model so the first real transcription is fast."""
-    import mlx_whisper
     import numpy as np
-    log.info("Loading Whisper model %s ...", config.WHISPER_MODEL)
-    mlx_whisper.transcribe(
-        np.zeros(16000, dtype=np.float32),
-        path_or_hf_repo=config.WHISPER_MODEL,
-    )
+    log.info("Loading Whisper model %s (%s) ...", config.WHISPER_MODEL, config.ENGINE)
+    _run_whisper(np.zeros(16000, dtype=np.float32), None)
     log.info("Whisper model ready")
-
-
-def _whisper_kwargs(language: Optional[str]) -> dict:
-    """
-    Decoding settings tuned to reduce hallucinations.
-
-    - condition_on_previous_text=False: stops a single hallucination from
-      cascading into the rest of the transcript.
-    - compression_ratio_threshold=2.0: reject overly repetitive segments;
-      whisper retries them with a higher temperature.
-    - no_speech_threshold=0.6 + logprob_threshold=-0.8: drop low-confidence
-      silent segments instead of inventing words.
-
-    Note: word-level timestamps are intentionally NOT requested. Speaker
-    diarization aligns on segment-level start/end times, so word timestamps
-    would roughly double decode time for data we never use.
-    """
-    kwargs = {
-        "path_or_hf_repo": config.WHISPER_MODEL,
-        "verbose": False,
-        "condition_on_previous_text": False,
-        "compression_ratio_threshold": 2.0,
-        "no_speech_threshold": 0.6,
-        "logprob_threshold": -0.8,
-        "temperature": (0.0, 0.2, 0.4, 0.6),
-    }
-    if language:
-        kwargs["language"] = language
-    return kwargs
 
 
 # ── Post-processing ───────────────────────────────────────────────────
@@ -234,7 +264,7 @@ def transcribe(file_path: str,
                on_progress: Optional[Callable] = None,
                trim_silence: bool = True) -> dict:
     """
-    Transcribe an audio file locally using mlx-whisper.
+    Transcribe an audio file locally (mlx-whisper or faster-whisper).
 
     Args:
         file_path: Path to the audio file.
@@ -246,8 +276,6 @@ def transcribe(file_path: str,
     Returns:
         {text, segments, language}
     """
-    import mlx_whisper
-
     def emit(stage, detail, percent=None):
         if on_progress:
             on_progress(stage, detail, percent)
@@ -262,7 +290,6 @@ def transcribe(file_path: str,
 
     all_segments: list[dict] = []
     detected_lang = language
-    kwargs = _whisper_kwargs(language)
 
     if duration > config.CHUNK_THRESHOLD_MIN * 60:
         action = "Trimming silence + splitting" if trim_silence else "Splitting"
@@ -280,7 +307,7 @@ def transcribe(file_path: str,
                  f"Chunk {i+1}/{total_chunks} ({chunk_mb:.1f} MB)...", pct)
 
             start = time.time()
-            result = mlx_whisper.transcribe(chunk_path, **kwargs)
+            result = _run_whisper(chunk_path, language)
             elapsed = time.time() - start
 
             if not detected_lang:
@@ -312,7 +339,7 @@ def transcribe(file_path: str,
         emit("transcribing", f"{action}...", 15)
         pre_path = preprocess_short(file_path, trim_silence=trim_silence)
         start = time.time()
-        result = mlx_whisper.transcribe(pre_path, **kwargs)
+        result = _run_whisper(pre_path, language)
         elapsed = time.time() - start
         if not detected_lang:
             detected_lang = result.get("language")
