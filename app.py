@@ -17,6 +17,7 @@ Routes:
 import json
 import logging
 import os
+import signal
 import sys
 import threading
 import unicodedata
@@ -335,6 +336,30 @@ def api_export(job_id, fmt):
         )
 
     return jsonify({"error": f"Unknown format: {fmt}"}), 400
+
+
+@app.route("/api/shutdown", methods=["POST"])
+def api_shutdown():
+    """
+    Stop the server (used by the "Stop app" button). Replies first, then
+    exits, so the browser gets a response before the process goes away.
+
+    Refuses while a transcription is in flight unless force=true: the
+    transcript is only persisted once the pipeline finishes, so killing the
+    server mid-job throws that work away.
+    """
+    force = request.args.get("force") == "true"
+    if pipeline.queue_is_busy() and not force:
+        log.info("Shutdown refused — a job is still running")
+        return jsonify({
+            "stopping": False,
+            "busy": True,
+            "error": "A transcription is still running.",
+        }), 409
+
+    log.info("Shutdown requested from the UI (force=%s)", force)
+    threading.Timer(0.5, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+    return jsonify({"stopping": True, "busy": False})
 
 
 # ── Dev server ────────────────────────────────────────────────────────

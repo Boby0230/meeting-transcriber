@@ -107,6 +107,20 @@
     <div class="jobs-list" id="jobsList"></div>
   </div>
 
+  <!-- Footer -->
+  <footer class="footer">
+    <button class="btn btn-ghost btn-sm" id="btnStop" title="Shut down the local server. Reopen from the Meeting Transcriber app.">Stop app</button>
+  </footer>
+
+</div>
+
+<!-- Shown after the server has been stopped -->
+<div class="stopped-overlay" id="stoppedOverlay">
+  <div class="stopped-card">
+    <div class="logo">🎙</div>
+    <h1>Meeting Transcriber has stopped</h1>
+    <p>You can close this tab. To use it again, open the <strong>Meeting Transcriber</strong> app.</p>
+  </div>
 </div>
 
 <script src="/static/app.js"></script>

@@ -477,3 +477,56 @@ header .subtitle {
   .btn { justify-content: center; }
   .progress-meta { flex-direction: column; gap: 0.25rem; }
 }
+
+/* ── Footer / Stop app ── */
+.footer {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0 0.5rem;
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.footer .btn:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* ── Stopped overlay ── */
+.stopped-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--bg);
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.stopped-overlay.visible { display: flex; }
+.stopped-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2.5rem 2rem;
+  max-width: 420px;
+  text-align: center;
+}
+.stopped-card .logo {
+  width: 48px; height: 48px;
+  margin: 0 auto 1.25rem;
+  background: var(--accent);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+}
+.stopped-card h1 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.6rem;
+}
+.stopped-card p {
+  font-size: 0.85rem;
+  color: var(--text2);
+  line-height: 1.6;
+}

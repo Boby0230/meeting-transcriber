@@ -15,12 +15,15 @@ var errorEl = document.getElementById('error');
 var resultsEl = document.getElementById('results');
 var jobsPanel = document.getElementById('jobsPanel');
 var jobsList = document.getElementById('jobsList');
+var btnStop = document.getElementById('btnStop');
+var stoppedOverlay = document.getElementById('stoppedOverlay');
 
 var selectedFile = null;
 var currentJobId = null;
 var startTime = null;
 var elapsedInterval = null;
 var lastLogCount = 0;
+var serverStopped = false;
 
 var STAGE_LABELS = {
   'upload': 'Processing upload...',
@@ -97,7 +100,7 @@ async function run() {
 
 // ── Polling ──────────────────────────────────────────────────────────
 function pollStatus() {
-  if (!currentJobId) return;
+  if (!currentJobId || serverStopped) return;
 
   fetch('/api/status/' + currentJobId)
     .then(function(res) { return res.json(); })
@@ -140,7 +143,10 @@ function pollStatus() {
 
       setTimeout(pollStatus, 2000);
     })
-    .catch(function() { setTimeout(pollStatus, 3000); });
+    .catch(function() {
+      if (serverStopped) return;
+      setTimeout(pollStatus, 3000);
+    });
 }
 
 function fetchResults() {
@@ -187,6 +193,7 @@ function fetchResults() {
 
 // ── Recent jobs ──────────────────────────────────────────────────────
 function refreshJobs() {
+  if (serverStopped) return;
   fetch('/api/jobs').then(function(res) { return res.json(); }).then(function(data) {
     if (!data.jobs || !data.jobs.length) {
       jobsPanel.style.display = 'none';
@@ -215,6 +222,48 @@ function refreshJobs() {
     });
     jobsList.innerHTML = rows.join('');
   });
+}
+
+// ── Stop the server ──────────────────────────────────────────────────
+// Guarded: if a cached/older template is served without the footer button,
+// a missing element must not break the rest of the page.
+if (btnStop) {
+  btnStop.addEventListener('click', function() { stopServer(false); });
+}
+
+function stopServer(force) {
+  var prompt = force
+    ? 'A transcription is still running. Stopping now loses that job\u2019s progress \u2014 the transcript is only saved when it finishes.\n\nStop anyway?'
+    : 'Stop Meeting Transcriber? Open it again from the Meeting Transcriber app.';
+  if (!confirm(prompt)) return;
+
+  btnStop.disabled = true;
+  fetch('/api/shutdown' + (force ? '?force=true' : ''), { method: 'POST' })
+    .then(function(res) {
+      return res.json().then(function(data) { return { status: res.status, data: data }; });
+    })
+    .then(function(r) {
+      if (r.status === 409 && r.data.busy) {
+        // Server refused because a job is in flight — re-ask with a warning.
+        btnStop.disabled = false;
+        stopServer(true);
+        return;
+      }
+      if (r.data.stopping) {
+        serverStopped = true;
+        clearInterval(elapsedInterval);
+        if (stoppedOverlay) stoppedOverlay.classList.add('visible');
+      } else {
+        btnStop.disabled = false;
+        showError(r.data.error || 'Could not stop the server.');
+      }
+    })
+    .catch(function() {
+      // The process may have exited before the response reached us.
+      serverStopped = true;
+      clearInterval(elapsedInterval);
+      if (stoppedOverlay) stoppedOverlay.classList.add('visible');
+    });
 }
 
 // Show recent jobs on first load
