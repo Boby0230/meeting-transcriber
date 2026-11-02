@@ -23,9 +23,13 @@
     <div class="upload-row">
       <button class="upload-btn" id="uploadBtn">📂 Choose audio file</button>
       <div class="file-info" id="fileInfo">No file selected</div>
-      <input type="file" id="fileInput" accept=".m4a,.mp3,.wav,.mp4,.webm,.ogg,.flac" hidden>
+      <!-- ffmpeg reads essentially any container, so keep this permissive.
+           The audio/* + video/* wildcards cover most pickers; the explicit
+           extensions catch files whose MIME type is missing or odd. -->
+      <input type="file" id="fileInput" hidden
+             accept="audio/*,video/*,.m4a,.mp3,.wav,.mp4,.mov,.m4v,.webm,.ogg,.oga,.opus,.flac,.aac,.aiff,.aif,.caf,.mkv,.avi,.wma,.amr,.3gp">
     </div>
-    <div class="format-hint">M4A, MP3, WAV, MP4 — any size, processed locally</div>
+    <div class="format-hint">M4A, MP3, WAV, MOV, MP4 and most other audio/video formats — any size, processed locally</div>
   </div>
 
   <!-- Controls -->
