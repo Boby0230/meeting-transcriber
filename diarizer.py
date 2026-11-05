@@ -19,7 +19,6 @@ import logging
 import os
 import string
 import subprocess
-import tempfile
 from typing import Callable, Optional
 
 import config
@@ -100,6 +99,27 @@ def _extract_annotation(pipeline_output):
     return pipeline_output  # pyannote 3.x: already an Annotation
 
 
+# ── Audio loading ─────────────────────────────────────────────────────
+
+SAMPLE_RATE = 16000
+
+
+def _load_waveform_16k(file_path: str):
+    """Decode any audio file to a (1, samples) float32 torch tensor at 16 kHz."""
+    import numpy as np
+    import torch
+
+    raw = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-i", file_path,
+         "-f", "f32le", "-ac", "1", "-ar", str(SAMPLE_RATE), "-"],
+        capture_output=True, check=True,
+    ).stdout
+    samples = np.frombuffer(raw, dtype=np.float32).copy()
+    if samples.size == 0:
+        raise RuntimeError("ffmpeg decoded no audio from the file")
+    return torch.from_numpy(samples).unsqueeze(0)
+
+
 # ── Main entry point ──────────────────────────────────────────────────
 
 def diarize(file_path: str,
@@ -123,38 +143,23 @@ def diarize(file_path: str,
     emit("diarizing", "Loading diarization pipeline (first run downloads ~1GB)...")
     pipeline = _get_pipeline()
 
-    # Pre-convert to a clean mono 16 kHz PCM WAV. Pyannote 4.x is strict
-    # about sample-count alignment, and many containers (m4a especially)
-    # report a slightly different duration than what torchaudio actually
-    # decodes — producing "expected N samples got M" errors. A fresh PCM
-    # WAV from ffmpeg has exact sample boundaries and sidesteps the issue.
-    wav_dir = tempfile.mkdtemp(prefix="meeting_diar_")
-    wav_path = os.path.join(wav_dir, "audio.wav")
-    try:
-        emit("diarizing", "Preparing audio for diarization (ffmpeg → wav)...")
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", file_path,
-             "-ac", "1", "-ar", "16000",
-             "-c:a", "pcm_s16le",
-             wav_path],
-            capture_output=True, check=True,
-        )
+    # Decode to 16 kHz mono float32 with ffmpeg and hand pyannote the samples
+    # in memory. Passing a file path makes pyannote 4.x read it through
+    # torchcodec, which isn't usable in every install (the Linux image has no
+    # working torchcodec). A waveform also has exact sample boundaries, which
+    # avoids the "expected N samples got M" errors some m4a files caused.
+    emit("diarizing", "Preparing audio for diarization (ffmpeg)...")
+    waveform = _load_waveform_16k(file_path)
 
-        emit("diarizing", "Running speaker diarization...")
-        kwargs = {}
-        if min_speakers is not None:
-            kwargs["min_speakers"] = min_speakers
-        if max_speakers is not None:
-            kwargs["max_speakers"] = max_speakers
+    emit("diarizing", "Running speaker diarization...")
+    kwargs = {}
+    if min_speakers is not None:
+        kwargs["min_speakers"] = min_speakers
+    if max_speakers is not None:
+        kwargs["max_speakers"] = max_speakers
 
-        output = pipeline(wav_path, **kwargs)
-        annotation = _extract_annotation(output)
-    finally:
-        try:
-            os.unlink(wav_path)
-            os.rmdir(wav_dir)
-        except OSError:
-            pass
+    output = pipeline({"waveform": waveform, "sample_rate": SAMPLE_RATE}, **kwargs)
+    annotation = _extract_annotation(output)
 
     # Collect raw turns, then remap labels (SPEAKER_00 → Speaker A) by order
     # of first appearance so the output is consistent and readable.
