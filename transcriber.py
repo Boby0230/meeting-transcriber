@@ -176,6 +176,21 @@ def _faster_whisper_model():
     return _fw_model
 
 
+def _load_audio_16k(path: str):
+    """
+    Decode any audio file to 16 kHz mono float32 samples with ffmpeg.
+    faster-whisper accepts samples directly, which skips its own decoder
+    (PyAV); newer PyAV releases dropped an option faster-whisper still passes.
+    """
+    import numpy as np
+    out = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-i", path,
+         "-f", "f32le", "-ac", "1", "-ar", "16000", "-"],
+        capture_output=True, check=True,
+    ).stdout
+    return np.frombuffer(out, dtype=np.float32).copy()
+
+
 def _run_whisper(audio, language: Optional[str]) -> dict:
     """
     Transcribe one file path (or a float32 numpy array) with the configured
@@ -190,6 +205,8 @@ def _run_whisper(audio, language: Optional[str]) -> dict:
         return {"segments": result.get("segments", []), "language": result.get("language")}
 
     model = _faster_whisper_model()
+    if isinstance(audio, str):
+        audio = _load_audio_16k(audio)
     fw = dict(DECODING)
     fw["log_prob_threshold"] = fw.pop("logprob_threshold")
     fw["temperature"] = list(fw["temperature"])
