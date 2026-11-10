@@ -40,7 +40,7 @@ if _missing:
     print(f"❌ Missing: {', '.join(_missing)}\n   pip3 install {' '.join(_missing)}")
     sys.exit(1)
 
-from flask import Flask, jsonify, render_template, request, Response  # noqa: E402
+from flask import Flask, jsonify, render_template, request, Response, send_from_directory  # noqa: E402
 
 import pipeline  # noqa: E402
 from storage import JobStore  # noqa: E402
@@ -145,6 +145,38 @@ def run_job(job_id: str, file_path: str, options: pipeline.PipelineOptions):
 @app.route("/")
 def index():
     return render_template("index.html", allow_shutdown=config.ALLOW_SHUTDOWN)
+
+
+# ── Home screen ───────────────────────────────────────────────────────
+# iOS fetches these without the login cookie, so they sit at the addresses Caddy lets
+# through without a login (the @pwa list in the homelab repo). They hold no personal data.
+
+@app.route("/apple-icon")
+def apple_icon():
+    return send_from_directory(app.static_folder, "apple-icon.png", mimetype="image/png", max_age=86400)
+
+
+@app.route("/icon.svg")
+def icon_svg():
+    return send_from_directory(app.static_folder, "icon.svg", mimetype="image/svg+xml", max_age=86400)
+
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    body = {
+        "name": "Meeting Transcriber",
+        "short_name": "Transcriber",
+        "description": "Meeting recordings to transcripts, with speaker labels.",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#0c0d0f",
+        "theme_color": "#0c0d0f",
+        "icons": [
+            {"src": "/apple-icon", "sizes": "180x180", "type": "image/png", "purpose": "any"},
+            {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+        ],
+    }
+    return app.response_class(json.dumps(body), mimetype="application/manifest+json")
 
 
 @app.route("/healthz")

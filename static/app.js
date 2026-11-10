@@ -196,7 +196,25 @@ function refreshJobs() {
   if (serverStopped) return;
   fetch('/api/jobs').then(function(res) { return res.json(); }).then(function(data) {
     if (!data.jobs || !data.jobs.length) {
-      jobsPanel.style.display = 'none';
+      // Empty screen: the mark's sound bars, quiet, beside empty text lines.
+      jobsPanel.style.display = 'block';
+      jobsList.innerHTML =
+        '<div class="empty-state">' +
+          '<svg class="empty-art" viewBox="0 0 180 120" aria-hidden="true">' +
+            '<g fill="#6ee7a0">' +
+              '<rect x="22" y="57" width="6" height="6" rx="3"/>' +
+              '<rect x="34" y="55" width="6" height="10" rx="3" opacity="0.8"/>' +
+              '<rect x="46" y="57" width="6" height="6" rx="3" opacity="0.6"/>' +
+              '<rect x="58" y="58" width="6" height="4" rx="2" opacity="0.45"/>' +
+              '<rect x="70" y="58" width="6" height="4" rx="2" opacity="0.3"/>' +
+            '</g>' +
+            '<g fill="none" stroke="#3a3c47" stroke-width="2.5" stroke-dasharray="4 5" stroke-linecap="round">' +
+              '<path d="M96 40 H158"/><path d="M96 54 H146"/><path d="M96 68 H154"/><path d="M96 82 H130"/>' +
+            '</g>' +
+          '</svg>' +
+          '<h3>No recordings yet</h3>' +
+          '<p>Choose a meeting recording above. You get the transcript with each speaker labelled.</p>' +
+        '</div>';
       return;
     }
     jobsPanel.style.display = 'block';

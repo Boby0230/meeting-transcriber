@@ -39,10 +39,7 @@ header {
 }
 header .logo {
   width: 40px; height: 40px;
-  background: var(--accent);
   border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
   flex-shrink: 0;
 }
 header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; }
@@ -530,3 +527,10 @@ header .subtitle {
   color: var(--text2);
   line-height: 1.6;
 }
+
+/* ── Empty screen: a small drawing in the mark's style (homelab docs/design-language.md, section 8) ── */
+.empty-state { display: grid; justify-items: center; text-align: center; gap: 0.6rem; padding: 1.6rem 1rem 1.8rem; }
+.empty-state h3 { font-size: 1.05rem; font-weight: 700; }
+.empty-state p { color: var(--text2); font-size: 0.9rem; max-width: 34ch; }
+.empty-art { width: 180px; height: 120px; max-width: 100%; }
+
