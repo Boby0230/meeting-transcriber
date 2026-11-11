@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meeting Transcriber</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-icon">
@@ -27,7 +26,7 @@
   <!-- Upload -->
   <div class="upload-section">
     <div class="upload-row">
-      <button class="upload-btn" id="uploadBtn">📂 Choose audio file</button>
+      <button class="upload-btn" id="uploadBtn">Choose audio file</button>
       <div class="file-info" id="fileInfo">No file selected</div>
       <!-- ffmpeg reads essentially any container, so keep this permissive.
            The audio/* + video/* wildcards cover most pickers; the explicit
@@ -86,9 +85,9 @@
   <div class="results" id="results">
     <div class="export-bar">
       <span class="label">Export:</span>
-      <button class="btn btn-ghost btn-sm" id="exportMd">📄 Markdown</button>
-      <button class="btn btn-ghost btn-sm" id="exportTxt">📝 Text</button>
-      <button class="btn btn-ghost btn-sm" id="exportJson">🔧 JSON</button>
+      <button class="btn btn-ghost btn-sm" id="exportMd">Markdown</button>
+      <button class="btn btn-ghost btn-sm" id="exportTxt">Text</button>
+      <button class="btn btn-ghost btn-sm" id="exportJson">JSON</button>
     </div>
 
     <div class="panel">

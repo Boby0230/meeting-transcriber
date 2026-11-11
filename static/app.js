@@ -153,7 +153,7 @@ function fetchResults() {
   fetch('/api/results/' + currentJobId)
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      document.getElementById('transcriptBody').textContent = data.transcript || '';
+      renderTranscript(data.transcript || '');
 
       // Surface warnings or hard errors
       var notes = [];
@@ -325,9 +325,58 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// ── Transcript, "Document" look (11 Nov) ─────────────────────────────
+// Paragraphs come as "[hh:mm:ss] Speaker A: text" (with speakers) or plain text (without).
+// Each speaker gets a colour in order of first appearance; the time sits in the margin.
+var lastTranscript = '';
+var SPEAKER_COLOURS = 6;
+
+function shortTime(t) {                 // "00:12:04" -> "12:04", "01:02:03" -> "1:02:03"
+  var p = t.split(':');
+  return p[0] === '00' ? p[1] + ':' + p[2] : String(Number(p[0])) + ':' + p[1] + ':' + p[2];
+}
+
+function renderTranscript(text) {
+  lastTranscript = text;
+  var body = document.getElementById('transcriptBody');
+  body.textContent = '';
+  var speakers = {};
+  text.split(/\n{2,}/).forEach(function(para) {
+    para = para.trim();
+    if (!para) return;
+    var m = para.match(/^\[(\d{2}:\d{2}:\d{2})\]\s+([^:\n]{1,40}):\s+([\s\S]*)$/);
+    var p = document.createElement('div');
+    p.className = 'doc-p';
+    var time = document.createElement('time');
+    var who = null, words = para;
+    if (m) {
+      time.textContent = shortTime(m[1]);
+      who = m[2].trim();
+      words = m[3];
+      if (!(who in speakers)) speakers[who] = Object.keys(speakers).length % SPEAKER_COLOURS;
+    } else {
+      var t = para.match(/^\[(\d{2}:\d{2}:\d{2})\]\s+([\s\S]*)$/);
+      if (t) { time.textContent = shortTime(t[1]); words = t[2]; }
+    }
+    p.appendChild(time);
+    var main = document.createElement('div');
+    if (who) {
+      var name = document.createElement('b');
+      name.className = 'doc-who s' + speakers[who];
+      name.textContent = who;
+      main.appendChild(name);
+    }
+    var w = document.createElement('p');
+    w.textContent = words;
+    main.appendChild(w);
+    p.appendChild(main);
+    body.appendChild(p);
+  });
+}
+
 function copyContent(id) {
   var el = document.getElementById(id);
-  var text = el.innerText || el.textContent;
+  var text = id === 'transcriptBody' && lastTranscript ? lastTranscript : (el.innerText || el.textContent);
   navigator.clipboard.writeText(text).then(function() {
     var btn = el.closest('.panel').querySelector('.copy-btn');
     if (btn) {
