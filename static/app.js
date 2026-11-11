@@ -154,6 +154,7 @@ function fetchResults() {
     .then(function(res) { return res.json(); })
     .then(function(data) {
       renderTranscript(data.transcript || '');
+      showDocHead(data);
 
       // Surface warnings or hard errors
       var notes = [];
@@ -229,16 +230,26 @@ function refreshJobs() {
           '<a class="job-link" href="/api/export/' + j.id + '/txt">txt</a>' +
           '<a class="job-link" href="/api/export/' + j.id + '/json">json</a>'
         : '<span class="job-status ' + statusClass + '">' + j.status + '</span>';
-      return '<div class="job-row">' +
+      var openable = j.status === 'done' || j.status === 'error';
+      meta.unshift(shortDate(j.created_at));
+      return '<div class="job-row' + (openable ? ' openable' : '') + '"' +
+          (openable ? ' role="button" tabindex="0" data-job="' + escapeHtml(j.id) + '"' : '') + '>' +
         '<div class="job-main">' +
-          '<div class="job-name">' + escapeHtml(j.filename || j.id) + '</div>' +
-          '<div class="job-meta">' + escapeHtml(meta.join(' · ')) +
-            ' · <span class="job-time">' + escapeHtml(j.created_at) + '</span></div>' +
+          '<div class="job-name">' + escapeHtml(titleOf(j.filename || j.id)) + '</div>' +
+          '<div class="job-meta">' + escapeHtml(meta.join(' · ')) + '</div>' +
         '</div>' +
         '<div class="job-actions">' + actions + '</div>' +
       '</div>';
     });
     jobsList.innerHTML = rows.join('');
+    jobsList.querySelectorAll('.job-row.openable').forEach(function(row) {
+      function open(e) {
+        if (e.target.closest('.job-actions')) return;      // the md/txt/json links download
+        openJob(row.getAttribute('data-job'));
+      }
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } });
+    });
   });
 }
 
@@ -323,6 +334,36 @@ function showError(msg) {
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── Opening a past recording, and the title above the transcript ───────────
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function shortDate(iso) {               // "2026-11-02T16:36:30" -> "2 Nov" (this year) or "2 Nov 2025"
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  if (!m) return iso || '';
+  var s = Number(m[3]) + ' ' + MONTHS[Number(m[2]) - 1];
+  return Number(m[1]) === new Date().getFullYear() ? s : s + ' ' + m[1];
+}
+function titleOf(filename) { return String(filename).replace(/\.[A-Za-z0-9]{2,4}$/, ''); }
+
+function showDocHead(data) {
+  document.getElementById('docTitle').textContent = titleOf(data.filename || 'Transcript');
+  var meta = [];
+  if (data.duration_min) meta.push(data.duration_min + ' min');
+  if (data.word_count) meta.push(data.word_count.toLocaleString() + ' words');
+  var speakers = {};
+  (lastTranscript.match(/^\[\d{2}:\d{2}:\d{2}\]\s+([^:\n]{1,40}):/gm) || []).forEach(function(l) { speakers[l.replace(/^\[[^\]]*\]\s+/, '')] = 1; });
+  var n = Object.keys(speakers).length;
+  if (n) meta.push(n + ' speaker' + (n === 1 ? '' : 's'));
+  if (data.language) meta.push(data.language === 'ro' ? 'Romanian' : data.language === 'en' ? 'English' : data.language);
+  document.getElementById('docMeta').textContent = meta.join(' · ');
+}
+
+function openJob(id) {
+  currentJobId = id;
+  errorEl.classList.remove('visible');
+  fetchResults();
+  setTimeout(function() { resultsEl.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 150);
 }
 
 // ── Transcript, "Document" look (11 Nov) ─────────────────────────────

@@ -24,6 +24,7 @@
   </header>
 
   <!-- Upload -->
+  <h2 class="section-title">New recording</h2>
   <div class="upload-section">
     <div class="upload-row">
       <button class="upload-btn" id="uploadBtn">Choose audio file</button>
@@ -83,6 +84,11 @@
 
   <!-- Result -->
   <div class="results" id="results">
+    <div class="doc-head">
+      <a href="#jobsPanel" class="doc-back" id="docBack">‹ Recordings</a>
+      <h2 id="docTitle">Transcript</h2>
+      <p id="docMeta"></p>
+    </div>
     <div class="export-bar">
       <span class="label">Export:</span>
       <button class="btn btn-ghost btn-sm" id="exportMd">Markdown</button>
@@ -104,7 +110,7 @@
   <!-- Recent jobs -->
   <div class="panel jobs-panel" id="jobsPanel" style="display:none;">
     <div class="panel-header">
-      <h2>Recent Jobs</h2>
+      <h2>Recordings</h2>
       <div class="panel-actions">
         <button class="copy-btn" onclick="refreshJobs()">Refresh</button>
       </div>

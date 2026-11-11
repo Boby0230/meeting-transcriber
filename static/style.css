@@ -555,3 +555,44 @@ header .subtitle {
   .doc-p { grid-template-columns: 3rem minmax(0, 1fr); gap: 0 0.6rem; }
 }
 
+
+/* ======================================================================================
+   "Document" across the whole page (11 Nov, Bogdan's pick), kept close to the design-round
+   mockup: calm and readable. Section titles are small uppercase labels, recordings are a
+   list of titles with one quiet details line, and a recording opens as a document with
+   its title and details above the text.
+   ====================================================================================== */
+.container { max-width: 760px; }
+header { border-bottom: 0; margin-bottom: 1.5rem; padding-bottom: 0; }
+header .logo { width: 30px; height: 30px; border-radius: 8px; }
+header h1 { font-size: 1.05rem; }
+header .subtitle { font-size: 0.72rem; color: var(--text3); }
+
+.section-title, .panel-header h2 {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text2);
+  margin: 0 0 0.6rem;
+}
+.upload-section { border-radius: 12px; }
+
+/* Recordings: a quiet list of titles, each opens as a document */
+.jobs-list { max-height: none; }
+.job-row { padding: 0.85rem 1.15rem; }
+.job-row.openable { cursor: pointer; }
+.job-row.openable:hover, .job-row.openable:focus-visible { background: var(--surface2); outline: none; }
+.job-row.openable:focus-visible { box-shadow: inset 3px 0 0 var(--accent); }
+.job-name { font-size: 0.98rem; white-space: normal; }
+.job-meta { font-family: var(--sans); font-size: 0.8rem; color: var(--text2); margin-top: 0.2rem; }
+.job-actions { opacity: 0.75; }
+
+/* The open recording: title and details above the text, as in the mockup */
+.doc-head { margin: 0.25rem 0 0.9rem; }
+.doc-back { font-size: 0.82rem; color: var(--text2); text-decoration: none; }
+.doc-back:hover { color: var(--accent); }
+.doc-head h2 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; margin: 0.35rem 0 0.15rem; overflow-wrap: anywhere; }
+.doc-head p { font-size: 0.85rem; color: var(--text2); }
+.export-bar .label { font-family: var(--sans); }
+@media (max-width: 640px) {
+  .job-actions { display: none; }               /* downloads stay in the open recording */
+  .doc-head h2 { font-size: 1.2rem; }
+}
+@media (max-width: 640px) { header .subtitle { display: none; } }
