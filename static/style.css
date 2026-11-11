@@ -545,6 +545,7 @@ header .subtitle {
 }
 .doc-p { display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); gap: 0 0.75rem; padding: 0.55rem 0; }
 .doc-p + .doc-p { border-top: 1px solid var(--surface2); }
+.doc-none { color: var(--text2); padding: 0.55rem 0; margin: 0; }
 .doc-p time { font-family: var(--mono); font-size: 0.72rem; color: var(--text3); padding-top: 0.2rem; text-align: right; }
 .doc-p p { color: var(--text); overflow-wrap: anywhere; }
 .doc-who { display: block; font-size: 0.75rem; letter-spacing: 0.04em; font-weight: 700; }
@@ -596,3 +597,7 @@ header .subtitle { font-size: 0.72rem; color: var(--text3); }
   .doc-head h2 { font-size: 1.2rem; }
 }
 @media (max-width: 640px) { header .subtitle { display: none; } }
+
+/* QA 11 Nov: no spinner once a job has finished; no Copy or Export for a failed job without text. */
+.finished .spinner { display: none; }
+.results.empty .export-bar, .results.empty .copy-btn { display: none; }

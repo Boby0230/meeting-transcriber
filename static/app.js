@@ -74,6 +74,7 @@ async function run() {
   progressLabel.textContent = 'Uploading file...';
   progressDuration.textContent = '';
   progressWords.textContent = '';
+  progressPanel.classList.remove('finished');
   progressPanel.classList.add('visible');
   lastLogCount = 0;
 
@@ -154,6 +155,11 @@ function fetchResults() {
     .then(function(res) { return res.json(); })
     .then(function(data) {
       renderTranscript(data.transcript || '');
+      resultsEl.classList.toggle('empty', !data.transcript);   // nothing to copy or export
+      progressPanel.classList.add('finished');                  // stop the spinner
+      if (!data.transcript && data.status === 'error') {
+        document.getElementById('transcriptBody').innerHTML = '<p class="doc-none">No transcript: this recording failed. The reason is above.</p>';
+      }
       showDocHead(data);
 
       // Surface warnings or hard errors
@@ -225,6 +231,7 @@ function refreshJobs() {
       if (j.duration_min) meta.push(j.duration_min + ' min');
       if (j.word_count) meta.push(j.word_count.toLocaleString() + ' words');
       if (j.diarized) meta.push('speakers');
+      if (j.status === 'error') meta.push('failed');
       var actions = (j.status === 'done' || j.status === 'error')
         ? '<a class="job-link" href="/api/export/' + j.id + '/md">md</a>' +
           '<a class="job-link" href="/api/export/' + j.id + '/txt">txt</a>' +
@@ -358,6 +365,14 @@ function showDocHead(data) {
   if (data.language) meta.push(data.language === 'ro' ? 'Romanian' : data.language === 'en' ? 'English' : data.language);
   document.getElementById('docMeta').textContent = meta.join(' · ');
 }
+
+// "‹ Recordings" closes the document and goes back to the list.
+document.getElementById('docBack').addEventListener('click', function(e) {
+  e.preventDefault();
+  resultsEl.classList.remove('visible');
+  errorEl.classList.remove('visible');
+  jobsPanel.scrollIntoView({behavior: 'smooth', block: 'start'});
+});
 
 function openJob(id) {
   currentJobId = id;

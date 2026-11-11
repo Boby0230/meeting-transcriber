@@ -265,7 +265,8 @@ def api_results(job_id):
     if not job:
         return jsonify({"error": "Job not found"}), 404
     # Allow fetching whatever transcript exists, even on partial failures.
-    if not job.transcript and job.status != "done":
+    # Failed jobs answer too, so opening one from the list can say why it failed.
+    if not job.transcript and job.status not in ("done", "error"):
         return jsonify({"error": "Job not finished yet"}), 400
     return jsonify({
         "transcript": job.transcript or "",
