@@ -1,5 +1,14 @@
 # Pitch: Transcriber, a transcript you can read, check and summarise (11 Nov 2026)
 
+**Decision (Bogdan, 11 Nov): parked.** The app's functions are fine for now. Not wanted:
+- naming speakers;
+- search inside a transcript;
+- keeping the audio;
+- summaries and action items.
+
+The three looks from the design round (Document, Tinted blocks, Summary first) are on the
+claude.ai artifact "Receipts and Transcriber Redesign" for when this comes back.
+
 Step 2 (homelab `docs/product-process.md`). For Bogdan to approve, change or cut before any
 design is final or code is written.
 
