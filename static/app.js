@@ -19,7 +19,14 @@ var btnStop = document.getElementById('btnStop');
 var stoppedOverlay = document.getElementById('stoppedOverlay');
 
 var selectedFile = null;
-var currentJobId = null;
+// Two different jobs, deliberately kept apart:
+//   liveJobId   - the transcription running now, driving the progress panel
+//   viewedJobId - the recording whose transcript is on screen, and what the
+//                 export buttons download
+// They are usually the same, but opening a past recording while something is
+// still transcribing must not stop tracking the live one.
+var liveJobId = null;
+var viewedJobId = null;
 var startTime = null;
 var elapsedInterval = null;
 var lastLogCount = 0;
@@ -92,8 +99,9 @@ async function run() {
     var res = await fetch('/api/process', { method: 'POST', body: form });
     var data = await res.json();
     if (data.error) { showError(data.error); return; }
-    currentJobId = data.job_id;
-    pollStatus(currentJobId);
+    liveJobId = data.job_id;
+    viewedJobId = null;
+    pollStatus(liveJobId);
   } catch (err) {
     showError('Upload failed: ' + err.message);
   }
@@ -101,18 +109,17 @@ async function run() {
 
 // ── Polling ──────────────────────────────────────────────────────────
 function pollStatus(jobId) {
-  // A poll loop belongs to the job that started it. If the user has since
-  // opened a different recording, currentJobId has moved on and this loop
-  // must stop -- otherwise it appends the other job's log lines under this
-  // one and overwrites the header (showing "Complete!" over a live job).
-  if (jobId === undefined) jobId = currentJobId;
-  if (!jobId || jobId !== currentJobId || serverStopped) return;
+  // A poll loop belongs to the job that started it. If that job is no longer
+  // the live one, the loop must stop -- otherwise it appends another job's
+  // log lines under this one and overwrites the header.
+  if (jobId === undefined) jobId = liveJobId;
+  if (!jobId || jobId !== liveJobId || serverStopped) return;
 
   fetch('/api/status/' + jobId)
     .then(function(res) { return res.json(); })
     .then(function(job) {
       // The fetch may have resolved after the user clicked away.
-      if (jobId !== currentJobId || serverStopped) return;
+      if (jobId !== liveJobId || serverStopped) return;
 
       progressFill.style.width = job.percent + '%';
       progressPct.textContent = job.percent + '%';
@@ -135,18 +142,12 @@ function pollStatus(jobId) {
       }
 
       if (job.status === 'done') {
-        clearInterval(elapsedInterval);
-        fetchResults();
+        finishLiveJob(jobId, null);
         return;
       }
       if (job.status === 'error') {
-        clearInterval(elapsedInterval);
-        // Try to fetch a partial transcript if there is one
-        if (job.has_transcript) {
-          fetchResults();
-        } else {
-          showError(job.error || 'Unknown error');
-        }
+        // A partial transcript is still worth showing.
+        finishLiveJob(jobId, job.has_transcript ? null : (job.error || 'Unknown error'));
         return;
       }
 
@@ -158,13 +159,34 @@ function pollStatus(jobId) {
     });
 }
 
-function fetchResults() {
-  fetch('/api/results/' + currentJobId)
+// The live job ended: wind the progress panel down and, unless the user is
+// reading some other recording, open its transcript.
+function finishLiveJob(jobId, errorMessage) {
+  clearInterval(elapsedInterval);
+  progressPanel.classList.add('finished');   // stop the spinner
+  liveJobId = null;
+  btnRun.disabled = false;
+  lastLogCount = 0;
+  refreshJobs();
+
+  if (errorMessage) {
+    showError(errorMessage);
+    return;
+  }
+  // Don't yank the user away from a recording they opened while this ran.
+  if (!viewedJobId || viewedJobId === jobId) {
+    viewedJobId = jobId;
+    fetchResults(jobId);
+  }
+}
+
+function fetchResults(jobId) {
+  if (!jobId) return;
+  fetch('/api/results/' + jobId)
     .then(function(res) { return res.json(); })
     .then(function(data) {
       renderTranscript(data.transcript || '');
       resultsEl.classList.toggle('empty', !data.transcript);   // nothing to copy or export
-      progressPanel.classList.add('finished');                  // stop the spinner
       if (!data.transcript && data.status === 'error') {
         document.getElementById('transcriptBody').innerHTML = '<p class="doc-none">No transcript: this recording failed. The reason is above.</p>';
       }
@@ -190,19 +212,16 @@ function fetchResults() {
       }
 
       document.getElementById('exportMd').onclick = function() {
-        window.location.href = '/api/export/' + currentJobId + '/md';
+        window.location.href = '/api/export/' + jobId + '/md';
       };
       document.getElementById('exportTxt').onclick = function() {
-        window.location.href = '/api/export/' + currentJobId + '/txt';
+        window.location.href = '/api/export/' + jobId + '/txt';
       };
       document.getElementById('exportJson').onclick = function() {
-        window.location.href = '/api/export/' + currentJobId + '/json';
+        window.location.href = '/api/export/' + jobId + '/json';
       };
 
       resultsEl.classList.add('visible');
-      btnRun.disabled = false;
-      lastLogCount = 0;
-      refreshJobs();
     });
 }
 
@@ -311,7 +330,7 @@ function stopServer(force) {
 }
 
 // ── Reattach to a job that is still running ──────────────────────────
-// currentJobId only ever gets set by starting a job in this tab, so a reload
+// liveJobId only ever gets set by starting a job in this tab, so a reload
 // (or a second tab, or another device) used to lose sight of a transcription
 // still running on the server: pollStatus() would return immediately and no
 // progress was shown. Pick the live job back up on load.
@@ -329,7 +348,7 @@ function reattachRunningJob() {
       }
       if (!live) return;
 
-      currentJobId = live.id;
+      liveJobId = live.id;
       lastLogCount = 0;
       logContainer.innerHTML = '';
       if (live.filename) {
@@ -351,7 +370,7 @@ function reattachRunningJob() {
       elapsedInterval = setInterval(updateElapsed, 1000);
       updateElapsed();
 
-      pollStatus(currentJobId);
+      pollStatus(liveJobId);
     })
     .catch(function() { /* offline or still starting: nothing to reattach */ });
 }
@@ -430,17 +449,11 @@ document.getElementById('docBack').addEventListener('click', function(e) {
 });
 
 function openJob(id) {
-  // Switching away from a live job: the progress panel and its log describe
-  // the job we are leaving, so clear them rather than let them sit there
-  // looking like this recording's. Reloading the page reattaches to the live
-  // job (see reattachRunningJob).
-  currentJobId = id;
-  clearInterval(elapsedInterval);
-  progressPanel.classList.remove('visible');
-  logContainer.innerHTML = '';
-  lastLogCount = 0;
+  // Only changes what is displayed. A transcription still running keeps its
+  // progress panel and keeps polling, because it is tracked separately.
+  viewedJobId = id;
   errorEl.classList.remove('visible');
-  fetchResults();
+  fetchResults(id);
   setTimeout(function() { resultsEl.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 150);
 }
 
