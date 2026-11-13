@@ -161,6 +161,28 @@ class JobStore:
                  job_id),
             )
 
+    def reconcile_interrupted(self) -> int:
+        """
+        Mark jobs left at 'queued'/'running' by a previous process as errored.
+
+        A row becomes 'running' when its worker takes the pipeline slot, and
+        only that same thread moves it to 'done'/'error'. A crash, restart or
+        redeploy therefore strands it at 'running' forever, where the UI shows
+        it as live and it can never be cleared. Called once at startup, when
+        by definition no job of this process can be in flight yet.
+
+        Returns the number of rows fixed.
+        """
+        with self._conn() as c:
+            cur = c.execute(
+                "UPDATE jobs SET status = 'error', stage = 'error', "
+                "error = ?, updated_at = ? "
+                "WHERE status IN ('queued', 'running')",
+                ("Interrupted by a server restart — please run it again.",
+                 datetime.now().isoformat(timespec="seconds")),
+            )
+            return cur.rowcount
+
     # ── Reads ──────────────────────────────────────────────────────
 
     def get(self, job_id: str) -> Optional[Job]:

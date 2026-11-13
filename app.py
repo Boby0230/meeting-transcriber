@@ -65,6 +65,13 @@ app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_MB * 1024 * 1024
 
 store = JobStore(config.DB_PATH)
 
+# A job interrupted by a restart would otherwise sit at 'running' forever.
+# Safe here: at import time this process has no jobs in flight. Run with a
+# single worker (see wsgi.py) so this happens exactly once per start.
+_interrupted = store.reconcile_interrupted()
+if _interrupted:
+    log.warning("Marked %d interrupted job(s) as errored after restart", _interrupted)
+
 
 # ── Background worker ─────────────────────────────────────────────────
 
