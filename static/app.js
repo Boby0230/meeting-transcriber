@@ -30,7 +30,7 @@ var STAGE_LABELS = {
   'queued': 'Queued — waiting for another job to finish...',
   'info': 'Analyzing audio...',
   'splitting': 'Trimming silence + chunking...',
-  'transcribing': 'Transcribing on Apple Silicon...',
+  'transcribing': 'Transcribing...',
   'transcription_done': 'Transcription complete',
   'diarizing': 'Identifying speakers...',
   'warning': 'Partial failure — continuing',
@@ -93,19 +93,27 @@ async function run() {
     var data = await res.json();
     if (data.error) { showError(data.error); return; }
     currentJobId = data.job_id;
-    pollStatus();
+    pollStatus(currentJobId);
   } catch (err) {
     showError('Upload failed: ' + err.message);
   }
 }
 
 // ── Polling ──────────────────────────────────────────────────────────
-function pollStatus() {
-  if (!currentJobId || serverStopped) return;
+function pollStatus(jobId) {
+  // A poll loop belongs to the job that started it. If the user has since
+  // opened a different recording, currentJobId has moved on and this loop
+  // must stop -- otherwise it appends the other job's log lines under this
+  // one and overwrites the header (showing "Complete!" over a live job).
+  if (jobId === undefined) jobId = currentJobId;
+  if (!jobId || jobId !== currentJobId || serverStopped) return;
 
-  fetch('/api/status/' + currentJobId)
+  fetch('/api/status/' + jobId)
     .then(function(res) { return res.json(); })
     .then(function(job) {
+      // The fetch may have resolved after the user clicked away.
+      if (jobId !== currentJobId || serverStopped) return;
+
       progressFill.style.width = job.percent + '%';
       progressPct.textContent = job.percent + '%';
       progressLabel.textContent = STAGE_LABELS[job.stage] || job.stage;
@@ -142,11 +150,11 @@ function pollStatus() {
         return;
       }
 
-      setTimeout(pollStatus, 2000);
+      setTimeout(function() { pollStatus(jobId); }, 2000);
     })
     .catch(function() {
       if (serverStopped) return;
-      setTimeout(pollStatus, 3000);
+      setTimeout(function() { pollStatus(jobId); }, 3000);
     });
 }
 
@@ -302,8 +310,55 @@ function stopServer(force) {
     });
 }
 
-// Show recent jobs on first load
+// ── Reattach to a job that is still running ──────────────────────────
+// currentJobId only ever gets set by starting a job in this tab, so a reload
+// (or a second tab, or another device) used to lose sight of a transcription
+// still running on the server: pollStatus() would return immediately and no
+// progress was shown. Pick the live job back up on load.
+function reattachRunningJob() {
+  fetch('/api/jobs')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var jobs = (data && data.jobs) || [];
+      var live = null;
+      for (var i = 0; i < jobs.length; i++) {
+        if (jobs[i].status === 'running' || jobs[i].status === 'queued') {
+          live = jobs[i];
+          break;
+        }
+      }
+      if (!live) return;
+
+      currentJobId = live.id;
+      lastLogCount = 0;
+      logContainer.innerHTML = '';
+      if (live.filename) {
+        fileInfo.innerHTML = '<span>' + escapeHtml(live.filename) + '</span>';
+      }
+      progressPanel.classList.remove('finished');
+      progressPanel.classList.add('visible');
+      btnRun.disabled = true;
+
+      // Count elapsed from when the job was created, not from page load.
+      // created_at has no timezone, so fall back if it parses to something
+      // absurd (clock skew between the container and this browser).
+      var created = live.created_at ? new Date(live.created_at).getTime() : NaN;
+      var age = Date.now() - created;
+      startTime = (isFinite(created) && age >= 0 && age < 86400000)
+        ? created
+        : Date.now();
+      if (elapsedInterval) clearInterval(elapsedInterval);
+      elapsedInterval = setInterval(updateElapsed, 1000);
+      updateElapsed();
+
+      pollStatus(currentJobId);
+    })
+    .catch(function() { /* offline or still starting: nothing to reattach */ });
+}
+
+// Show recent jobs on first load, and resume any job still in flight.
 refreshJobs();
+reattachRunningJob();
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -375,7 +430,15 @@ document.getElementById('docBack').addEventListener('click', function(e) {
 });
 
 function openJob(id) {
+  // Switching away from a live job: the progress panel and its log describe
+  // the job we are leaving, so clear them rather than let them sit there
+  // looking like this recording's. Reloading the page reattaches to the live
+  // job (see reattachRunningJob).
   currentJobId = id;
+  clearInterval(elapsedInterval);
+  progressPanel.classList.remove('visible');
+  logContainer.innerHTML = '';
+  lastLogCount = 0;
   errorEl.classList.remove('visible');
   fetchResults();
   setTimeout(function() { resultsEl.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 150);
